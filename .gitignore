@@ -1,0 +1,25 @@
+# Python
+__pycache__/
+*.pyc
+
+# Pytorch models
+*.pth
+model_zoo/
+
+# Results
+results/
+
+# IDE
+.idea/
+.vscode/
+
+# Dataset
+testsets/
+
+# figs
+figs/
+
+# Project files to ignore
+download-weights.sh
+LICENSE
+README.md
