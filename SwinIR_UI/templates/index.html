@@ -1,0 +1,188 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SwinIR Studio</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}" />
+</head>
+<body>
+  <div class="bg-pattern"></div>
+
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-dot"></span>
+      <div class="brand-text">
+        <strong>SwinIR Studio</strong>
+        <span>Image Restoration Portal</span>
+      </div>
+    </div>
+    <div class="topbar-right">
+      <span id="deviceBadge" class="pill">设备检测中...</span>
+      <span class="pill pill-accent">Local Engine</span>
+    </div>
+  </header>
+
+  <main class="page">
+    <section class="hero">
+      <div class="hero-main">
+        <p class="hero-kicker">AI IMAGE ENHANCEMENT</p>
+        <h1>SwinIR 图像修复演示平台</h1>
+        <p class="hero-desc">
+          以“清晰流程 + 及时反馈 + 可追溯结果”为目标，支持单图演示和批量处理。你可以直接把结果用于实验可视化和报告素材。
+        </p>
+        <div class="flow-steps">
+          <span class="step-chip">1. 选择模型参数</span>
+          <span class="step-chip">2. 上传图片或文件夹</span>
+          <span class="step-chip">3. 执行推理并查看结果</span>
+        </div>
+      </div>
+
+      <div class="hero-controls">
+        <label class="field">
+          <span>模型版本</span>
+          <select id="modelSelect">
+            {% for m in models %}
+            <option value="{{ m.key }}" {% if m.key == default_model %}selected{% endif %}>{{ m.label }}</option>
+            {% endfor %}
+          </select>
+        </label>
+        <label class="field field-small">
+          <span>Tile</span>
+          <input id="tileInput" type="number" min="0" value="256" />
+        </label>
+      </div>
+
+      <div class="hero-metrics">
+        <article class="metric-card">
+          <p>单图处理次数</p>
+          <strong id="singleDoneMetric">0</strong>
+        </article>
+        <article class="metric-card">
+          <p>批量处理总数</p>
+          <strong id="batchDoneMetric">0</strong>
+        </article>
+      </div>
+    </section>
+
+    <section class="studio">
+      <aside class="side-nav">
+        <p class="side-title">工作台模式</p>
+        <button id="tabSingle" class="nav-btn is-active" type="button">单图效果演示</button>
+        <button id="tabBatch" class="nav-btn" type="button">批量文件夹处理</button>
+
+        <div class="side-note">
+          <p>结果输出目录</p>
+          <code>SwinIR_UI/results/</code>
+        </div>
+
+        <div class="side-note">
+          <p>运行日志</p>
+          <small>记录本次页面会话中的关键操作</small>
+        </div>
+      </aside>
+
+      <div class="content-area">
+        <section id="panelSingle" class="panel is-active">
+          <div class="panel-head">
+            <h2>单图处理</h2>
+            <p>上传一张图片后执行推理，结果和关键参数会同步更新。</p>
+          </div>
+
+          <div class="single-grid">
+            <form id="singleForm" class="card upload-card">
+              <div id="singleDropZone" class="drop-zone">
+                <input id="singleImageInput" name="image" type="file" accept="image/*" hidden />
+                <div class="drop-icon" aria-hidden="true"></div>
+                <p class="drop-title">拖拽图片到此处</p>
+                <p class="drop-sub">或点击按钮选择本地文件</p>
+                <button id="singlePickBtn" type="button" class="btn btn-secondary">选择图片</button>
+                <p id="singleFileMeta" class="meta">支持 PNG/JPG/JPEG/BMP/TIFF/WEBP</p>
+              </div>
+
+              <div class="actions">
+                <button id="singleRunBtn" class="btn btn-primary" type="submit">开始处理</button>
+                <span id="singleStatus" class="status"></span>
+              </div>
+
+              <div class="single-meta">
+                <p id="singleRunInfo">本次运行：未开始</p>
+                <p id="singleSizeInfo">输入/输出尺寸：-</p>
+              </div>
+              <p id="singleOutputPath" class="path"></p>
+            </form>
+
+            <div class="result-column">
+              <article class="card image-card">
+                <header class="image-head">原图</header>
+                <div class="image-canvas">
+                  <p id="beforeHint" class="canvas-hint">请先上传图片</p>
+                  <img id="beforePreview" alt="原图" />
+                </div>
+              </article>
+
+              <article class="card image-card">
+                <header class="image-head">SwinIR 结果图</header>
+                <div class="image-canvas">
+                  <p id="afterHint" class="canvas-hint">处理完成后显示结果图</p>
+                  <img id="afterPreview" alt="处理后图片" />
+                </div>
+              </article>
+
+              <article class="card result-actions">
+                <p>结果操作</p>
+                <div class="actions">
+                  <button id="openResultBtn" type="button" class="btn btn-secondary" disabled>打开结果图</button>
+                  <button id="copyResultPathBtn" type="button" class="btn btn-secondary" disabled>复制结果路径</button>
+                </div>
+              </article>
+            </div>
+          </div>
+        </section>
+
+        <section id="panelBatch" class="panel">
+          <div class="panel-head">
+            <h2>批量处理</h2>
+            <p>一次选择整个文件夹，系统会自动处理全部图片并输出结果集。</p>
+          </div>
+
+          <form id="batchForm" class="card batch-card">
+            <div class="batch-picker">
+              <input id="folderInput" type="file" webkitdirectory directory multiple hidden />
+              <button id="folderPickBtn" type="button" class="btn btn-secondary">选择文件夹</button>
+              <span id="folderInfo" class="status">尚未选择文件夹</span>
+            </div>
+
+            <div class="actions">
+              <button id="batchRunBtn" class="btn btn-primary" type="submit">开始批量处理</button>
+              <span id="batchStatus" class="status"></span>
+            </div>
+
+            <div class="batch-meta">
+              <p id="batchRunInfo">本次运行：未开始</p>
+              <p id="batchTimeInfo">总耗时：-</p>
+            </div>
+          </form>
+
+          <div class="card batch-result">
+            <p id="batchSummary"></p>
+            <p id="batchOutputPath" class="path"></p>
+            <div id="batchPreviewGrid" class="preview-grid"></div>
+            <ul id="batchErrorList" class="error-list"></ul>
+          </div>
+        </section>
+
+        <section class="card log-panel">
+          <div class="log-head">
+            <h3>运行日志</h3>
+            <button id="clearLogBtn" type="button" class="btn btn-secondary">清空日志</button>
+          </div>
+          <ul id="activityLog" class="log-list"></ul>
+        </section>
+      </div>
+    </section>
+  </main>
+
+  <script src="{{ url_for('static', filename='app.js') }}"></script>
+</body>
+</html>
