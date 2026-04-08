@@ -7,7 +7,10 @@ from basicsr.data.degradations import random_add_gaussian_noise_pt, random_add_p
 from basicsr.utils.img_process_util import filter2D
 from basicsr.utils import DiffJPEG, USMSharp
 
-from utils import generate_kernel
+try:
+    from lq_generator.utils import generate_kernel
+except ImportError:
+    from utils import generate_kernel
 
 class RealESRGANDegradation:
 

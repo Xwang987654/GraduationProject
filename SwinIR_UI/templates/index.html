@@ -49,7 +49,8 @@
         </label>
         <label class="field field-small">
           <span>Tile</span>
-          <input id="tileInput" type="number" min="0" value="256" />
+          <input id="tileInput" type="number" min="0" max="1024" step="32" value="256" />
+          <small class="field-help">建议 64-512；0 表示整图推理（显存占用更高）</small>
         </label>
       </div>
 
@@ -86,11 +87,20 @@
         <section id="panelSingle" class="panel is-active">
           <div class="panel-head">
             <h2>单图处理</h2>
-            <p>上传一张图片后执行推理，结果和关键参数会同步更新。</p>
+            <p>上传一张图片后执行推理，可选择“直接超分”或“先生成低质量图再超分”。</p>
           </div>
 
           <div class="single-grid">
             <form id="singleForm" class="card upload-card">
+              <div class="single-workflow">
+                <label for="singleWorkflowSelect">单图工作流</label>
+                <select id="singleWorkflowSelect" name="workflow_mode">
+                  <option value="direct_lq_to_sr">低质量图 -> 超分</option>
+                  <option value="real_hq_to_lq_to_sr">真实图 -> 生成低质图 -> 超分</option>
+                </select>
+                <p id="singleWorkflowHint" class="meta">当前：直接输入低质量图，输出超分结果图。</p>
+              </div>
+
               <div id="singleDropZone" class="drop-zone">
                 <input id="singleImageInput" name="image" type="file" accept="image/*" hidden />
                 <div class="drop-icon" aria-hidden="true"></div>
@@ -114,15 +124,23 @@
 
             <div class="result-column">
               <article class="card image-card">
-                <header class="image-head">原图</header>
+                <header id="beforeHead" class="image-head">输入图</header>
                 <div class="image-canvas">
                   <p id="beforeHint" class="canvas-hint">请先上传图片</p>
                   <img id="beforePreview" alt="原图" />
                 </div>
               </article>
 
+              <article id="lqCard" class="card image-card" hidden>
+                <header id="lqHead" class="image-head">生成的低质量图</header>
+                <div class="image-canvas">
+                  <p id="lqHint" class="canvas-hint">仅在“真实图 -> 生成低质图 -> 超分”流程中显示</p>
+                  <img id="lqPreview" alt="生成的低质量图" />
+                </div>
+              </article>
+
               <article class="card image-card">
-                <header class="image-head">SwinIR 结果图</header>
+                <header id="afterHead" class="image-head">SwinIR 结果图</header>
                 <div class="image-canvas">
                   <p id="afterHint" class="canvas-hint">处理完成后显示结果图</p>
                   <img id="afterPreview" alt="处理后图片" />
@@ -152,10 +170,17 @@
               <button id="folderPickBtn" type="button" class="btn btn-secondary">选择文件夹</button>
               <span id="folderInfo" class="status">尚未选择文件夹</span>
             </div>
+            <p id="batchCompatHint" class="meta"></p>
 
             <div class="actions">
               <button id="batchRunBtn" class="btn btn-primary" type="submit">开始批量处理</button>
+              <button id="batchCancelBtn" class="btn btn-secondary" type="button" disabled>取消当前任务</button>
               <span id="batchStatus" class="status"></span>
+            </div>
+
+            <div class="batch-progress-wrap">
+              <progress id="batchProgressBar" max="100" value="0"></progress>
+              <span id="batchProgressText" class="status">进度：0/0</span>
             </div>
 
             <div class="batch-meta">
@@ -175,31 +200,48 @@
         <section class="card log-panel">
           <div class="log-head">
             <h3>运行日志</h3>
-            <button id="clearLogBtn" type="button" class="btn btn-secondary">清空日志</button>
+            <button id="clearLogBtn" type="button" class="btn btn-secondary">清空会话日志</button>
           </div>
           <ul id="activityLog" class="log-list"></ul>
 
-          <div class="db-log-divider"></div>
-          <div class="log-head">
-            <h3>SQLite 推理记录查询</h3>
-          </div>
-          <div class="db-log-toolbar">
-            <input id="logRunIdInput" type="text" placeholder="run_id（可模糊搜索）" />
-            <select id="logModeSelect">
-              <option value="">全部模式</option>
-              <option value="single">single</option>
-              <option value="batch">batch</option>
-            </select>
-            <select id="logStatusSelect">
-              <option value="">全部状态</option>
-              <option value="success">success</option>
-              <option value="error">error</option>
-            </select>
-            <button id="queryLogsBtn" type="button" class="btn btn-secondary">查询</button>
-            <button id="latestLogsBtn" type="button" class="btn btn-secondary">最新50条</button>
-          </div>
-          <p id="dbLogStatus" class="status"></p>
-          <ul id="dbLogList" class="db-log-list"></ul>
+          <details id="dbLogDetails" class="db-log-details">
+            <summary>SQLite 推理记录查询</summary>
+            <div class="db-log-content">
+              <div class="db-log-toolbar">
+                <input id="logRunIdInput" type="text" placeholder="run_id（可模糊搜索）" />
+                <select id="logModeSelect">
+                  <option value="">全部模式</option>
+                  <option value="single">single</option>
+                  <option value="batch">batch</option>
+                </select>
+                <select id="logStatusSelect">
+                  <option value="">全部状态</option>
+                  <option value="success">success</option>
+                  <option value="error">error</option>
+                  <option value="canceled">canceled</option>
+                </select>
+              </div>
+              <div class="db-log-toolbar">
+                <input id="logFromInput" type="datetime-local" />
+                <input id="logToInput" type="datetime-local" />
+                <select id="logLimitSelect">
+                  <option value="20">20 / 页</option>
+                  <option value="50" selected>50 / 页</option>
+                  <option value="100">100 / 页</option>
+                </select>
+                <button id="queryLogsBtn" type="button" class="btn btn-secondary">查询</button>
+                <button id="latestLogsBtn" type="button" class="btn btn-secondary">最新记录</button>
+                <button id="clearDbViewBtn" type="button" class="btn btn-secondary">清空列表</button>
+              </div>
+              <div class="db-log-pagination">
+                <button id="logsPrevBtn" type="button" class="btn btn-secondary">上一页</button>
+                <span id="logsPageInfo" class="status">第 1 页</span>
+                <button id="logsNextBtn" type="button" class="btn btn-secondary">下一页</button>
+              </div>
+              <p id="dbLogStatus" class="status"></p>
+              <ul id="dbLogList" class="db-log-list"></ul>
+            </div>
+          </details>
         </section>
       </div>
     </section>

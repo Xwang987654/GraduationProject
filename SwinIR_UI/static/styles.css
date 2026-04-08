@@ -190,6 +190,12 @@ body {
   opacity: 0.92;
 }
 
+.field-help {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.9);
+  line-height: 1.4;
+}
+
 .field select,
 .field input {
   width: 100%;
@@ -347,6 +353,32 @@ body {
   padding: 14px;
 }
 
+.single-workflow {
+  display: grid;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.single-workflow label {
+  font-size: 13px;
+  color: #40536d;
+  font-weight: 700;
+}
+
+.single-workflow select {
+  width: 100%;
+  height: 42px;
+  border-radius: 10px;
+  border: 1px solid var(--line-strong);
+  background: #fff;
+  color: #30435c;
+  padding: 0 12px;
+}
+
+.single-workflow .meta {
+  margin: 0;
+}
+
 .drop-zone {
   border-radius: 12px;
   border: 1px dashed #c8d2e3;
@@ -419,6 +451,14 @@ body {
 
 .btn:hover {
   transform: translateY(-1px);
+}
+
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+summary:focus-visible {
+  outline: 2px solid #ff8f37;
+  outline-offset: 2px;
 }
 
 .btn-primary {
@@ -539,6 +579,27 @@ body {
   flex-wrap: wrap;
 }
 
+.batch-progress-wrap {
+  margin-top: 10px;
+  display: grid;
+  gap: 6px;
+}
+
+.batch-progress-wrap progress {
+  width: 100%;
+  height: 12px;
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.batch-progress-wrap progress::-webkit-progress-bar {
+  background: #e9eff9;
+}
+
+.batch-progress-wrap progress::-webkit-progress-value {
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
+}
+
 .preview-grid {
   margin-top: 10px;
   display: grid;
@@ -603,6 +664,30 @@ body {
   border-top: 1px solid var(--line);
 }
 
+.db-log-details {
+  margin-top: 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: #fff;
+}
+
+.db-log-details > summary {
+  list-style: none;
+  cursor: pointer;
+  padding: 12px;
+  font-weight: 700;
+  color: #33465f;
+}
+
+.db-log-details > summary::-webkit-details-marker {
+  display: none;
+}
+
+.db-log-content {
+  border-top: 1px solid var(--line);
+  padding: 10px;
+}
+
 .db-log-toolbar {
   display: flex;
   gap: 8px;
@@ -623,6 +708,14 @@ body {
 .db-log-toolbar input {
   min-width: 240px;
   flex: 1 1 320px;
+}
+
+.db-log-pagination {
+  margin-top: 10px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
 }
 
 .db-log-list {
@@ -662,6 +755,13 @@ body {
   font-family: "Manrope", sans-serif;
 }
 
+.db-log-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
 .db-log-badge {
   display: inline-flex;
   align-items: center;
@@ -698,6 +798,33 @@ body {
 
 .db-log-error {
   color: #c03232;
+}
+
+.db-log-error-box {
+  margin-top: 8px;
+  border: 1px solid rgba(192, 50, 50, 0.25);
+  border-radius: 8px;
+  background: #fff7f7;
+  padding: 6px 8px;
+}
+
+.db-log-error-box summary {
+  cursor: pointer;
+  color: #b22a2a;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.db-mini-btn {
+  height: 28px;
+  border-radius: 8px;
+  border: 1px solid var(--line-strong);
+  background: #fff;
+  color: #41526a;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 0 8px;
+  cursor: pointer;
 }
 
 @media (max-width: 1120px) {
