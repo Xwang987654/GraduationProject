@@ -43,6 +43,13 @@ const batchTimeInfo = document.getElementById("batchTimeInfo");
 
 const activityLog = document.getElementById("activityLog");
 const clearLogBtn = document.getElementById("clearLogBtn");
+const logRunIdInput = document.getElementById("logRunIdInput");
+const logModeSelect = document.getElementById("logModeSelect");
+const logStatusSelect = document.getElementById("logStatusSelect");
+const queryLogsBtn = document.getElementById("queryLogsBtn");
+const latestLogsBtn = document.getElementById("latestLogsBtn");
+const dbLogStatus = document.getElementById("dbLogStatus");
+const dbLogList = document.getElementById("dbLogList");
 
 let lastSingleResultUrl = "";
 let lastSingleSavedPath = "";
@@ -323,9 +330,103 @@ batchForm.addEventListener("submit", async (e) => {
   }
 });
 
+const renderDbLogs = (records) => {
+  if (!dbLogList) return;
+  dbLogList.innerHTML = "";
+
+  if (!Array.isArray(records) || records.length === 0) {
+    const empty = document.createElement("li");
+    empty.className = "db-log-empty";
+    empty.textContent = "未查询到记录";
+    dbLogList.appendChild(empty);
+    return;
+  }
+
+  records.forEach((record) => {
+    const item = document.createElement("li");
+    item.className = `db-log-item is-${record.status || "unknown"}`;
+
+    const top = document.createElement("div");
+    top.className = "db-log-top";
+
+    const runId = document.createElement("strong");
+    runId.textContent = `run_id: ${record.run_id || "-"}`;
+    top.appendChild(runId);
+
+    const badge = document.createElement("span");
+    badge.className = `db-log-badge is-${record.status || "unknown"}`;
+    badge.textContent = `${record.mode || "-"} / ${record.status || "-"}`;
+    top.appendChild(badge);
+
+    const meta = document.createElement("p");
+    meta.className = "db-log-meta";
+    const elapsed = typeof record.elapsed_ms === "number" ? `${record.elapsed_ms} ms` : "-";
+    meta.textContent = `${record.created_at || "-"} | model=${record.model_key || "-"} | elapsed=${elapsed}`;
+
+    const detail = document.createElement("p");
+    detail.className = "db-log-detail";
+    detail.textContent =
+      `processed=${record.processed ?? "-"}, skipped=${record.skipped ?? "-"}, output=${record.output_path || record.output_dir || "-"}`;
+
+    item.appendChild(top);
+    item.appendChild(meta);
+    item.appendChild(detail);
+
+    if (record.error_message) {
+      const err = document.createElement("p");
+      err.className = "db-log-error";
+      err.textContent = record.error_message;
+      item.appendChild(err);
+    }
+    dbLogList.appendChild(item);
+  });
+};
+
+const loadDbLogs = async ({ runId = "", mode = "", status = "", limit = 50 } = {}) => {
+  if (!dbLogStatus) return;
+  setStatus(dbLogStatus, "正在查询 SQLite 记录...");
+
+  const params = new URLSearchParams();
+  if (runId) params.set("run_id", runId);
+  if (mode) params.set("mode", mode);
+  if (status) params.set("status", status);
+  params.set("limit", String(limit));
+
+  try {
+    const resp = await fetch(`/api/logs?${params.toString()}`);
+    const data = await resp.json();
+    if (!resp.ok || !data.ok) {
+      throw new Error(data.error || "查询失败");
+    }
+    renderDbLogs(data.records || []);
+    setStatus(dbLogStatus, `查询完成，共 ${data.count ?? 0} 条`, "ok");
+    addLog(`SQLite 日志查询完成，返回 ${data.count ?? 0} 条`, "success");
+  } catch (err) {
+    renderDbLogs([]);
+    setStatus(dbLogStatus, `查询失败：${err.message}`, "error");
+    addLog(`SQLite 日志查询失败：${err.message}`, "error");
+  }
+};
+
 clearLogBtn.addEventListener("click", () => {
   activityLog.innerHTML = "";
   addLog("日志已清空");
+});
+
+queryLogsBtn?.addEventListener("click", () => {
+  loadDbLogs({
+    runId: logRunIdInput?.value.trim() || "",
+    mode: logModeSelect?.value || "",
+    status: logStatusSelect?.value || "",
+    limit: 100,
+  });
+});
+
+latestLogsBtn?.addEventListener("click", () => {
+  if (logRunIdInput) logRunIdInput.value = "";
+  if (logModeSelect) logModeSelect.value = "";
+  if (logStatusSelect) logStatusSelect.value = "";
+  loadDbLogs({ limit: 50 });
 });
 
 const bootstrap = async () => {
@@ -343,6 +444,7 @@ const bootstrap = async () => {
     deviceBadge.textContent = "推理设备：接口不可用";
     addLog("初始化失败：接口不可用", "error");
   }
+  await loadDbLogs({ limit: 50 });
 };
 
 bootstrap();

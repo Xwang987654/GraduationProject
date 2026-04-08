@@ -178,6 +178,28 @@
             <button id="clearLogBtn" type="button" class="btn btn-secondary">清空日志</button>
           </div>
           <ul id="activityLog" class="log-list"></ul>
+
+          <div class="db-log-divider"></div>
+          <div class="log-head">
+            <h3>SQLite 推理记录查询</h3>
+          </div>
+          <div class="db-log-toolbar">
+            <input id="logRunIdInput" type="text" placeholder="run_id（可模糊搜索）" />
+            <select id="logModeSelect">
+              <option value="">全部模式</option>
+              <option value="single">single</option>
+              <option value="batch">batch</option>
+            </select>
+            <select id="logStatusSelect">
+              <option value="">全部状态</option>
+              <option value="success">success</option>
+              <option value="error">error</option>
+            </select>
+            <button id="queryLogsBtn" type="button" class="btn btn-secondary">查询</button>
+            <button id="latestLogsBtn" type="button" class="btn btn-secondary">最新50条</button>
+          </div>
+          <p id="dbLogStatus" class="status"></p>
+          <ul id="dbLogList" class="db-log-list"></ul>
         </section>
       </div>
     </section>
