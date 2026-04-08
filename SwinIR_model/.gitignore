@@ -4,7 +4,7 @@ __pycache__/
 
 # Pytorch models
 *.pth
-model_zoo/
+#model_zoo/
 
 # Results
 results/
@@ -14,8 +14,8 @@ results/
 .vscode/
 
 # Dataset
-testsets/
-lq_generator/datasets/
+#testsets/
+#lq_generator/datasets/
 
 # figs
 figs/
