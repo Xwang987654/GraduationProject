@@ -7,7 +7,7 @@ import cv2
 import numpy as np
 
 
-SUPPORTED_EXT = ["*.png", "*.jpg", "*.jpeg", "*.PNG", "*.JPG", "*.JPEG"]
+SUPPORTED_EXT = ["*.png", "*.jpg", "*.jpeg", "*.bmp", "*.tif", "*.tiff", "*.webp", "*.PNG", "*.JPG", "*.JPEG", "*.BMP", "*.TIF", "*.TIFF", "*.WEBP"]
 
 
 # ==========================================================

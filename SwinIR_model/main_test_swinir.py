@@ -10,6 +10,7 @@ import requests
 
 from models.network_swinir import SwinIR as net
 from utils import util_calculate_psnr_ssim as util
+from model_registry import get_default_model_path
 
 PROJECT_ROOT = Path(__file__).resolve().parent
 
@@ -35,7 +36,7 @@ def main():
                                        'Images are NOT tested patch by patch.')
     parser.add_argument('--large_model', action='store_true', help='use large model, only provided for real image sr')
     parser.add_argument('--model_path', type=str,
-                        default='model_zoo/003_realSR_BSRGAN_DFO_s64w8_SwinIR-M_x2_PSNR-with-dict-keys-params-and-params_ema.pth')
+                        default=get_default_model_path())
     # parser.add_argument('--folder_lq', type=str, default='testsets/RealSRSet+5images', help='input low-quality test image folder')
     parser.add_argument('--folder_lq', type=str, default='lq_generator/datasets/LQ', help='input low-quality test image folder')
     parser.add_argument('--folder_gt', type=str, default=None, help='input ground-truth test image folder')
@@ -202,7 +203,7 @@ def define_model(args):
                     mlp_ratio=2, upsampler='', resi_connection='1conv')
         param_key_g = 'params'
 
-    pretrained_model = torch.load(args.model_path)
+    pretrained_model = torch.load(args.model_path, weights_only=True)
     model.load_state_dict(pretrained_model[param_key_g] if param_key_g in pretrained_model.keys() else pretrained_model, strict=True)
 
     return model

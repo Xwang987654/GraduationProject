@@ -6,11 +6,6 @@ import torch
 from tqdm import tqdm
 
 from image_io import list_images, load_image, save_image
-try:
-    from rename import rename_images
-except ImportError:
-    # Fallback for package-style imports from the project root.
-    from lq_generator.rename import rename_images
 
 
 class BatchProcessor:
@@ -42,8 +37,6 @@ class BatchProcessor:
     # ==========================================================
 
     def run(self):
-
-        rename_images(self.input_dir, sort_by="name")
 
         image_list = list_images(self.input_dir, self.recursive)
 

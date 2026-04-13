@@ -897,3 +897,34 @@ summary:focus-visible {
     grid-template-columns: 1fr;
   }
 }
+
+/* ---- Loading animation for buttons ---- */
+.btn.is-loading {
+  position: relative;
+  pointer-events: none;
+  opacity: 0.85;
+}
+
+.btn.is-loading::after {
+  content: "";
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  margin-left: 8px;
+  border: 2px solid rgba(255, 255, 255, 0.4);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: btn-spin 0.6s linear infinite;
+  vertical-align: middle;
+}
+
+.btn-secondary.is-loading::after {
+  border-color: rgba(100, 116, 139, 0.3);
+  border-top-color: #64748b;
+}
+
+@keyframes btn-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

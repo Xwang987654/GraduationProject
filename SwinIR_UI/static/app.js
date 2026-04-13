@@ -129,6 +129,15 @@ const parseTile = () => {
   return String(value);
 };
 
+const MAX_FILE_SIZE_MB = 50;
+const MAX_FILE_SIZE = MAX_FILE_SIZE_MB * 1024 * 1024;
+
+const validateFileSize = (file) => {
+  if (file.size > MAX_FILE_SIZE) {
+    throw new Error(`文件 "${file.name}" 大小为 ${(file.size / 1024 / 1024).toFixed(1)}MB，超过 ${MAX_FILE_SIZE_MB}MB 限制。`);
+  }
+};
+
 const getSingleWorkflowMode = () => {
   const mode = singleWorkflowSelect?.value || DIRECT_WORKFLOW;
   if (mode !== DIRECT_WORKFLOW && mode !== REAL_TO_LQ_WORKFLOW) {
@@ -310,6 +319,14 @@ singleForm.addEventListener("submit", async (e) => {
     return;
   }
 
+  try {
+    validateFileSize(file);
+  } catch (err) {
+    setStatus(singleStatus, err.message, "error");
+    addLog(`单图处理失败：${err.message}`, "error");
+    return;
+  }
+
   const workflowMode = getSingleWorkflowMode();
   if (workflowMode === REAL_TO_LQ_WORKFLOW && !lqGeneratorReady) {
     setStatus(singleStatus, "当前环境 lq_generator 不可用，无法执行该流程。", "error");
@@ -324,6 +341,8 @@ singleForm.addEventListener("submit", async (e) => {
   formData.append("workflow_mode", workflowMode);
 
   singleRunBtn.disabled = true;
+  singleRunBtn.textContent = "处理中...";
+  singleRunBtn.classList.add("is-loading");
   applySingleWorkflowUI(workflowMode);
   setStatus(singleStatus, "正在处理，请稍候...");
   setStatus(singleRunInfo, `本次运行：模型 ${modelSelect.value}，Tile ${tile}，流程 ${workflowMode}`);
@@ -400,6 +419,8 @@ singleForm.addEventListener("submit", async (e) => {
     addLog(`单图推理失败：${err.message}`, "error");
   } finally {
     singleRunBtn.disabled = false;
+    singleRunBtn.textContent = "开始处理";
+    singleRunBtn.classList.remove("is-loading");
   }
 });
 
@@ -473,6 +494,8 @@ const fetchBatchStatus = async (runId) => {
 const onBatchTaskDone = (data) => {
   stopBatchPolling();
   batchRunBtn.disabled = false;
+  batchRunBtn.textContent = "开始批量处理";
+  batchRunBtn.classList.remove("is-loading");
   batchCancelBtn.disabled = true;
 
   applyBatchResult(data);
@@ -542,10 +565,20 @@ batchForm.addEventListener("submit", async (e) => {
     return;
   }
 
+  const oversized = files.filter(f => f.size > MAX_FILE_SIZE);
+  if (oversized.length > 0) {
+    const names = oversized.map(f => f.name).slice(0, 3).join(", ");
+    setStatus(batchStatus, `以下文件超过 ${MAX_FILE_SIZE_MB}MB 限制：${names}`, "error");
+    addLog(`批量处理失败：${oversized.length} 个文件超过大小限制`, "error");
+    return;
+  }
+
   stopBatchPolling();
   resetBatchResult();
   setBatchProgress(0, 0, 0, files.length);
   batchRunBtn.disabled = true;
+  batchRunBtn.textContent = "处理中...";
+  batchRunBtn.classList.add("is-loading");
   batchCancelBtn.disabled = false;
   setStatus(batchStatus, "任务提交中...");
   setStatus(batchRunInfo, "本次运行：任务准备中...");
@@ -575,6 +608,8 @@ batchForm.addEventListener("submit", async (e) => {
     }
   } catch (err) {
     batchRunBtn.disabled = false;
+    batchRunBtn.textContent = "开始批量处理";
+    batchRunBtn.classList.remove("is-loading");
     batchCancelBtn.disabled = true;
     setStatus(batchStatus, `失败：${err.message}`, "error");
     setStatus(batchRunInfo, "本次运行：失败");
@@ -839,6 +874,26 @@ const bootstrap = async () => {
 
   refreshLogFilters(true);
   await loadDbLogs();
+  try {
+    const statsResp = await fetch("/api/logs?limit=1&offset=0");
+    const statsData = await statsResp.json();
+    if (statsData.ok) {
+      // 分别查询 single 和 batch 的总数
+      const singleResp = await fetch("/api/logs?mode=single&status=success&limit=1&offset=0");
+      const singleData = await singleResp.json();
+      if (singleData.ok) {
+        singleDoneMetric.textContent = String(singleData.total || 0);
+      }
+      const batchResp = await fetch("/api/logs?mode=batch&status=success&limit=200&offset=0");
+      const batchData = await batchResp.json();
+      if (batchData.ok && Array.isArray(batchData.records)) {
+        const totalProcessed = batchData.records.reduce((sum, r) => sum + (r.processed || 0), 0);
+        batchDoneMetric.textContent = String(totalProcessed);
+      }
+    }
+  } catch {
+    // 统计初始化失败不影响功能
+  }
   updateLogPagination();
   if (dbLogDetails) dbLogDetails.open = false;
 };

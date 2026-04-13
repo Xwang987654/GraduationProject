@@ -12,7 +12,7 @@ from types import SimpleNamespace
 import cv2
 import numpy as np
 import torch
-from flask import Flask, jsonify, render_template, request, send_from_directory
+from flask import Flask, abort, jsonify, render_template, request, send_from_directory
 from werkzeug.utils import secure_filename
 
 
@@ -57,32 +57,16 @@ if not PROJECT_ROOT.exists():
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 from main_test_swinir import define_model, test  # noqa: E402
+from model_registry import get_model_options, get_default_model_key  # noqa: E402
 
 
-MODEL_OPTIONS = {
-    "x2_psnr": {
-        "label": "Real-SR x2 (PSNR)",
-        "scale": 2,
-        "model_path": PROJECT_ROOT
-        / "model_zoo"
-        / "003_realSR_BSRGAN_DFO_s64w8_SwinIR-M_x2_PSNR-with-dict-keys-params-and-params_ema.pth",
-    },
-    "x2_gan": {
-        "label": "Real-SR x2 (GAN)",
-        "scale": 2,
-        "model_path": PROJECT_ROOT
-        / "model_zoo"
-        / "003_realSR_BSRGAN_DFO_s64w8_SwinIR-M_x2_GAN-with-dict-keys-params-and-params_ema.pth",
-    },
-    "x4_psnr": {
-        "label": "Real-SR x4 (PSNR)",
-        "scale": 4,
-        "model_path": PROJECT_ROOT
-        / "model_zoo"
-        / "003_realSR_BSRGAN_DFO_s64w8_SwinIR-M_x4_PSNR-with-dict-keys-params-and-params_ema.pth",
-    },
-}
-DEFAULT_MODEL_KEY = "x2_psnr"
+# 从 model_zoo 目录动态扫描可用模型，不再硬编码
+MODEL_OPTIONS = get_model_options(PROJECT_ROOT / "model_zoo")
+if not MODEL_OPTIONS:
+    raise FileNotFoundError(
+        f"model_zoo 目录 ({PROJECT_ROOT / 'model_zoo'}) 中没有找到可用的模型文件。"
+    )
+DEFAULT_MODEL_KEY = get_default_model_key(MODEL_OPTIONS)
 
 WORKFLOW_OPTIONS = {
     "direct_lq_to_sr": {
@@ -122,7 +106,7 @@ def _build_args(model_key: str) -> SimpleNamespace:
         noise=15,
         jpeg=40,
         training_patch_size=64,
-        large_model=False,
+        large_model=cfg.get("large_model", False),
         model_path=str(cfg["model_path"]),
         folder_lq=None,
         folder_gt=None,
@@ -339,6 +323,40 @@ def _cleanup_batch_tasks() -> None:
         ]
         for run_id in finished_ids[: max(0, len(BATCH_TASKS) - MAX_BATCH_TASKS)]:
             BATCH_TASKS.pop(run_id, None)
+
+
+def _cleanup_old_results(max_age_days: int = 7) -> int:
+    """清理超过 max_age_days 天的结果目录。"""
+    import shutil
+    cleaned = 0
+    cutoff = dt.datetime.now() - dt.timedelta(days=max_age_days)
+    for sub in ("single", "batch"):
+        parent = RESULTS_ROOT / sub
+        if not parent.exists():
+            continue
+        for entry in parent.iterdir():
+            if not entry.is_dir():
+                continue
+            try:
+                mtime = dt.datetime.fromtimestamp(entry.stat().st_mtime)
+                if mtime < cutoff:
+                    shutil.rmtree(entry)
+                    cleaned += 1
+            except OSError:
+                continue
+    return cleaned
+
+
+def _cleanup_old_logs(max_days: int = 30) -> int:
+    """清理超过 max_days 天的推理日志记录。"""
+    cutoff = (dt.datetime.now() - dt.timedelta(days=max_days)).isoformat(timespec="seconds")
+    try:
+        with LOG_DB_LOCK:
+            with sqlite3.connect(LOG_DB_PATH) as conn:
+                cursor = conn.execute("DELETE FROM inference_logs WHERE created_at < ?", (cutoff,))
+                return cursor.rowcount
+    except sqlite3.Error:
+        return 0
 
 
 def _build_batch_task(run_id: str, model_key: str, model_label: str, tile: int | None, total_uploaded: int, output_dir: Path) -> dict:
@@ -634,6 +652,12 @@ service = SwinIRService()
 lq_service = LQGeneratorService()
 
 app = Flask(__name__, template_folder="templates", static_folder="static")
+app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024  # 50MB max upload
+
+
+@app.errorhandler(413)
+def too_large(e):
+    return jsonify({"ok": False, "error": "上传文件过大，最大支持 50MB。"}), 413
 
 
 @app.get("/")
@@ -655,6 +679,21 @@ def models():
             "lq_generator_ready": lq_service.is_available,
         }
     )
+
+
+@app.get("/api/health")
+def health():
+    gpu_available = torch.cuda.is_available()
+    gpu_name = torch.cuda.get_device_name(0) if gpu_available else None
+    return jsonify({
+        "ok": True,
+        "status": "healthy",
+        "device": str(service.device),
+        "gpu_available": gpu_available,
+        "gpu_name": gpu_name,
+        "lq_generator_ready": lq_service.is_available,
+        "models_loaded": list(service._models.keys()),
+    })
 
 
 @app.post("/api/process-single")
@@ -1025,10 +1064,26 @@ def logs():
     )
 
 
+@app.post("/api/cleanup")
+def cleanup():
+    max_result_days = int(request.args.get("max_result_days", "7"))
+    max_log_days = int(request.args.get("max_log_days", "30"))
+    results_cleaned = _cleanup_old_results(max_age_days=max_result_days)
+    logs_cleaned = _cleanup_old_logs(max_days=max_log_days)
+    return jsonify({
+        "ok": True,
+        "results_dirs_cleaned": results_cleaned,
+        "log_records_cleaned": logs_cleaned,
+    })
+
+
 @app.get("/results/<path:relative_path>")
 def serve_results(relative_path: str):
     return send_from_directory(RESULTS_ROOT, relative_path)
 
 
 if __name__ == "__main__":
-    app.run(host="127.0.0.1", port=7860, debug=False)
+    host = os.getenv("SWINIR_HOST", "127.0.0.1")
+    port = int(os.getenv("SWINIR_PORT", "7860"))
+    debug = os.getenv("SWINIR_DEBUG", "false").lower() in ("true", "1", "yes")
+    app.run(host=host, port=port, debug=debug)

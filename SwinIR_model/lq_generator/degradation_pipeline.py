@@ -160,59 +160,5 @@ class RealESRGANDegradation:
         out = torch.clamp(out, 0, 1)
         out = self.jpeg(out, quality=jpeg_p)
 
-        # ================== 注意：此处存在重复的第二阶段代码 ==================
-        # 以下代码块与上面的第二阶段内容完全一致，可能是复制粘贴导致的冗余。
-        # 在实际使用中应删除重复部分，避免两次执行相同的操作。
-        # 但此处保留原代码，并添加注释说明。
-
-        if random.random() < self.opt["degradation_2"]["second_blur_prob"]:
-            out = filter2D(out, self.kernel2)
-
-        resize_prob2 = self.opt["degradation_2"]["resize_prob"]
-        resize_range2 = self.opt["degradation_2"]["resize_range"]
-
-        updown_type = random.choices(["up", "down", "keep"], resize_prob2)[0]
-
-        if updown_type == "up":
-            scale = np.random.uniform(1, resize_range2[1])
-        elif updown_type == "down":
-            scale = np.random.uniform(resize_range2[0], 1)
-        else:
-            scale = 1
-
-        mode = random.choice(["area", "bilinear", "bicubic"])
-        out = F.interpolate(out, scale_factor=scale, mode=mode)
-
-        # noise2
-        if random.random() < self.opt["degradation_2"]["gaussian_noise_prob"]:
-            out = random_add_gaussian_noise_pt(
-                out,
-                sigma_range=self.opt["degradation_2"]["noise_range"],
-                clip=True
-            )
-        else:
-            out = random_add_poisson_noise_pt(
-                out,
-                scale_range=self.opt["degradation_2"]["poisson_scale_range"],
-                clip=True
-            )
-
-        # 最终下采样到 scale
-        out = F.interpolate(
-            out,
-            size=(ori_h // self.scale, ori_w // self.scale),
-            mode="bicubic"
-        )
-
-        # 最终 sinc + jpeg
-        out = filter2D(out, self.sinc_kernel)
-
-        jpeg_range2 = self.opt["degradation_2"]["jpeg_range"]
-        jpeg_p = out.new_zeros(out.size(0)).uniform_(*jpeg_range2)
-        out = torch.clamp(out, 0, 1)
-        out = self.jpeg(out, quality=jpeg_p)
-
-        # ==============================================================
-
         # 最终输出裁剪到 [0,1] 范围，确保像素值合法
         return torch.clamp(out, 0, 1)
